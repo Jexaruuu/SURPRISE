@@ -6,7 +6,7 @@ function Surprise() {
   const [mousePosition, setMousePosition] = useState({ x: -9999, y: -9999 })
   const copiedTimeoutRef = useRef(null)
 
-  const link = "https://example.com"
+  const link = "https://discord.gift/w48BzWPwZw7kgnGB"
 
   const stars = useMemo(
     () =>
