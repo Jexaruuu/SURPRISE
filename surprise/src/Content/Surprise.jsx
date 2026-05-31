@@ -487,7 +487,7 @@ function Surprise() {
         }
 
         .gift-box.open .letter {
-          transform: translateY(-18px) scale(1);
+          transform: translateY(2px) scale(1);
           opacity: 1;
           z-index: 7;
           transition-delay: 0.22s;
@@ -733,7 +733,7 @@ function Surprise() {
           }
 
           .gift-box.open .letter {
-            transform: translateY(-14px) scale(1);
+            transform: translateY(2px) scale(1);
             z-index: 7;
           }
 
