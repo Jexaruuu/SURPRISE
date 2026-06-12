@@ -1,12 +1,45 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
 function Surprise() {
-  const [isOpen, setIsOpen] = useState(false)
+  const [activeGift, setActiveGift] = useState(0)
+  const [openGifts, setOpenGifts] = useState([false, false])
+  const [openedGifts, setOpenedGifts] = useState([true, false])
   const [showCopiedPopup, setShowCopiedPopup] = useState(false)
   const [mousePosition, setMousePosition] = useState({ x: -9999, y: -9999 })
-  const copiedTimeoutRef = useRef(null)
+  const [dragOffset, setDragOffset] = useState(0)
 
-  const link = "https://discord.gift/w48BzWPwZw7kgnGB"
+  const copiedTimeoutRef = useRef(null)
+  const dragStartXRef = useRef(0)
+  const draggingRef = useRef(false)
+  const didDragRef = useRef(false)
+
+  const gifts = [
+    {
+      label: "This is for you Adoy <3",
+      link: "https://discord.gift/w48BzWPwZw7kgnGB",
+      className: "gift-box-blue",
+    },
+    {
+      label: "Another surprise for you Adoy <3",
+      link: "https://discord.gift/w48BzWPwZw7kgnGB",
+      className: "gift-box-azure",
+    },
+  ]
+
+  const yodaImages = [
+    {
+      src: "/grogu3.gif",
+      className: "yoda-one",
+    },
+    {
+      src: "/grogu2.gif",
+      className: "yoda-two",
+    },
+    {
+      src: "/grogu1.gif",
+      className: "yoda-three",
+    },
+  ]
 
   const stars = useMemo(
     () =>
@@ -33,6 +66,31 @@ function Surprise() {
     []
   )
 
+  const fallingStars = useMemo(
+    () =>
+      Array.from({ length: 34 }, () => ({
+        top: `${Math.random() * 70}%`,
+        left: `${Math.random() * 110}%`,
+        animationDuration: `${Math.random() * 3 + 2.5}s`,
+        animationDelay: `${Math.random() * 4}s`,
+        opacity: Math.random() * 0.6 + 0.4,
+      })),
+    []
+  )
+
+  const dolphins = useMemo(
+    () =>
+      Array.from({ length: 12 }, () => ({
+        top: `${Math.random() * 70 + 12}%`,
+        left: `${Math.random() * 95}%`,
+        size: `${Math.random() * 18 + 28}px`,
+        animationDuration: `${Math.random() * 10 + 9}s`,
+        animationDelay: `${Math.random() * 7}s`,
+        rotate: `${Math.random() * 24 - 12}deg`,
+      })),
+    []
+  )
+
   useEffect(() => {
     return () => {
       if (copiedTimeoutRef.current) {
@@ -41,16 +99,26 @@ function Surprise() {
     }
   }, [])
 
-  const openEnvelope = () => {
-    if (!isOpen) {
-      setIsOpen(true)
+  const openEnvelope = (index) => {
+    if (index !== activeGift) {
+      return
     }
+
+    setOpenGifts((current) =>
+      current.map((isOpen, giftIndex) => (giftIndex === index ? true : isOpen))
+    )
+
+    setOpenedGifts((current) =>
+      current.map((isOpened, giftIndex) => (giftIndex === index ? true : isOpened))
+    )
   }
 
   const closeEnvelope = () => {
-    if (isOpen) {
-      setIsOpen(false)
-    }
+    setOpenGifts((current) =>
+      current.map((isOpen, giftIndex) =>
+        giftIndex === activeGift && isOpen ? false : isOpen
+      )
+    )
   }
 
   const moveFireflies = (event) => {
@@ -60,7 +128,7 @@ function Surprise() {
     })
   }
 
-  const copyLink = async (event) => {
+  const copyLink = async (event, link) => {
     event.stopPropagation()
 
     try {
@@ -95,61 +163,160 @@ function Surprise() {
     }
   }
 
+  const startDrag = (event) => {
+    draggingRef.current = true
+    didDragRef.current = false
+    dragStartXRef.current = event.clientX
+  }
+
+  const moveDrag = (event) => {
+    if (!draggingRef.current) {
+      return
+    }
+
+    const nextOffset = event.clientX - dragStartXRef.current
+    setDragOffset(nextOffset)
+
+    if (Math.abs(nextOffset) > 8) {
+      didDragRef.current = true
+    }
+  }
+
+  const endDrag = () => {
+    if (!draggingRef.current) {
+      return
+    }
+
+    draggingRef.current = false
+
+    if (dragOffset < -85 && activeGift < gifts.length - 1) {
+      setActiveGift(activeGift + 1)
+      setOpenGifts((current) => current.map(() => false))
+    }
+
+    if (dragOffset > 85 && activeGift > 0) {
+      setActiveGift(activeGift - 1)
+      setOpenGifts((current) => current.map(() => false))
+    }
+
+    setDragOffset(0)
+
+    setTimeout(() => {
+      didDragRef.current = false
+    }, 0)
+  }
+
   return (
     <div
       onClick={closeEnvelope}
-      onMouseMove={moveFireflies}
-      onMouseLeave={() => setMousePosition({ x: -9999, y: -9999 })}
-      className="relative min-h-screen overflow-hidden flex items-center justify-center bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900 px-4 py-10"
+      onMouseMove={(event) => {
+        moveFireflies(event)
+        moveDrag(event)
+      }}
+      onMouseLeave={() => {
+        setMousePosition({ x: -9999, y: -9999 })
+        endDrag()
+      }}
+      onMouseUp={endDrag}
+      onTouchMove={(event) => {
+        if (event.touches[0]) {
+          moveDrag({
+            clientX: event.touches[0].clientX,
+          })
+        }
+      }}
+      onTouchEnd={endDrag}
+      className={`relative min-h-screen overflow-hidden flex items-center justify-center px-4 py-10 transition-colors duration-700 ${
+        activeGift === 0
+          ? "bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900"
+          : "bg-gradient-to-b from-[#050816] via-[#172554] to-[#020617]"
+      }`}
     >
-      <div className="absolute inset-0">
-        {stars.map((style, index) => (
-          <span
-            key={`star-${index}`}
-            className="absolute rounded-full bg-white animate-pulse"
-            style={style}
-          />
-        ))}
-      </div>
+      {activeGift === 0 && (
+        <>
+          <div className="absolute inset-0">
+            {stars.map((style, index) => (
+              <span
+                key={`star-${index}`}
+                className="absolute rounded-full bg-white animate-pulse"
+                style={style}
+              />
+            ))}
+          </div>
+
+          <div className="absolute inset-0">
+            {fireflies.map((firefly, index) => {
+              const fireflyX =
+                typeof window !== "undefined"
+                  ? (firefly.leftValue / 100) * window.innerWidth
+                  : 0
+              const fireflyY =
+                typeof window !== "undefined"
+                  ? (firefly.topValue / 100) * window.innerHeight
+                  : 0
+
+              const distanceX = fireflyX - mousePosition.x
+              const distanceY = fireflyY - mousePosition.y
+              const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY)
+              const range = 150
+              const strength = Math.max(0, (range - distance) / range)
+              const angle = Math.atan2(distanceY, distanceX)
+              const moveX = Math.cos(angle) * strength * 55
+              const moveY = Math.sin(angle) * strength * 55
+
+              return (
+                <span
+                  key={`firefly-${index}`}
+                  className="absolute h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-yellow-300 shadow-[0_0_16px_6px_rgba(253,224,71,0.7)] animate-float firefly-dot"
+                  style={{
+                    top: `${firefly.topValue}%`,
+                    left: `${firefly.leftValue}%`,
+                    animationDuration: firefly.animationDuration,
+                    animationDelay: firefly.animationDelay,
+                    "--firefly-x": `${moveX}px`,
+                    "--firefly-y": `${moveY}px`,
+                  }}
+                />
+              )
+            })}
+          </div>
+        </>
+      )}
+
+      {activeGift === 1 && (
+        <>
+          <div className="absolute inset-0">
+            {fallingStars.map((star, index) => (
+              <span
+                key={`falling-star-${index}`}
+                className="falling-star"
+                style={star}
+              />
+            ))}
+          </div>
+
+          <div className="absolute inset-0">
+            {dolphins.map((dolphin, index) => (
+              <span
+                key={`dolphin-${index}`}
+                className="flying-dolphin"
+                style={{
+                  top: dolphin.top,
+                  left: dolphin.left,
+                  fontSize: dolphin.size,
+                  animationDuration: dolphin.animationDuration,
+                  animationDelay: dolphin.animationDelay,
+                  "--dolphin-rotate": dolphin.rotate,
+                }}
+              >
+                🐬
+              </span>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="absolute top-8 right-8 sm:top-12 sm:right-12 md:top-16 md:right-16 h-24 w-24 sm:h-32 sm:w-32 md:h-40 md:w-40 rounded-full bg-gradient-to-br from-yellow-50 via-yellow-100 to-yellow-200 shadow-[0_0_80px_30px_rgba(254,249,195,0.35)] animate-moon" />
-
-      <div className="absolute inset-0">
-        {fireflies.map((firefly, index) => {
-          const fireflyX =
-            typeof window !== "undefined"
-              ? (firefly.leftValue / 100) * window.innerWidth
-              : 0
-          const fireflyY =
-            typeof window !== "undefined"
-              ? (firefly.topValue / 100) * window.innerHeight
-              : 0
-
-          const distanceX = fireflyX - mousePosition.x
-          const distanceY = fireflyY - mousePosition.y
-          const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY)
-          const range = 150
-          const strength = Math.max(0, (range - distance) / range)
-          const angle = Math.atan2(distanceY, distanceX)
-          const moveX = Math.cos(angle) * strength * 55
-          const moveY = Math.sin(angle) * strength * 55
-
-          return (
-            <span
-              key={`firefly-${index}`}
-              className="absolute h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-yellow-300 shadow-[0_0_16px_6px_rgba(253,224,71,0.7)] animate-float firefly-dot"
-              style={{
-                top: `${firefly.topValue}%`,
-                left: `${firefly.leftValue}%`,
-                animationDuration: firefly.animationDuration,
-                animationDelay: firefly.animationDelay,
-                "--firefly-x": `${moveX}px`,
-                "--firefly-y": `${moveY}px`,
-              }}
-            />
-          )
-        })}
-      </div>
 
       {showCopiedPopup && (
         <div className="fixed top-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-white px-6 py-3 text-sm font-bold text-blue-700 shadow-[0_12px_35px_rgba(15,23,42,0.35)]">
@@ -158,54 +325,142 @@ function Surprise() {
       )}
 
       <div
-        role="button"
-        tabIndex={0}
-        aria-label={isOpen ? "Gift box is open" : "Open gift box"}
-        onClick={(event) => {
-          event.stopPropagation()
-          openEnvelope()
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault()
-            openEnvelope()
+        onMouseDown={startDrag}
+        onTouchStart={(event) => {
+          if (event.touches[0]) {
+            startDrag({
+              clientX: event.touches[0].clientX,
+            })
           }
         }}
-        className="relative z-10 envelope-wrap border-0 bg-transparent p-0 cursor-pointer"
+        className="relative z-10 w-full max-w-[620px] overflow-visible"
       >
-        <div className={`gift-box ${isOpen ? "open" : ""}`}>
-          <div className="letter">
-            <div className="surprise-content">
-              <p className="surprise-label">This is for you Adoy &lt;3</p>
+        <div
+          className="gift-slider"
+          style={{
+            transform: `translateX(calc(${-activeGift * 100}% + ${dragOffset}px))`,
+            transition: draggingRef.current ? "none" : "transform 0.65s ease-in-out",
+          }}
+        >
+          {gifts.map((gift, index) => {
+            const isOpen = openGifts[index]
 
-              <div
-                className="revealed-link-text"
-                onClick={(event) => event.stopPropagation()}
-              >
-                {link}
+            return (
+              <div key={`gift-page-${index}`} className="gift-slide">
+                <div
+                  role="button"
+                  tabIndex={activeGift === index ? 0 : -1}
+                  aria-label={isOpen ? "Gift box is open" : "Open gift box"}
+                  aria-disabled={activeGift !== index}
+                  onClick={(event) => {
+                    event.stopPropagation()
+
+                    if (didDragRef.current || activeGift !== index) {
+                      return
+                    }
+
+                    openEnvelope(index)
+                  }}
+                  onKeyDown={(event) => {
+                    if (activeGift !== index) {
+                      return
+                    }
+
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      openEnvelope(index)
+                    }
+                  }}
+                  className={`relative envelope-wrap border-0 bg-transparent p-0 ${
+                    activeGift === index ? "cursor-pointer" : "cursor-default pointer-events-none"
+                  }`}
+                >
+                  <div className={`gift-box ${gift.className} ${isOpen ? "open" : ""}`}>
+                    {index === 0 && openedGifts[index] && (
+                      <div className="opened-already-label">Opened already</div>
+                    )}
+
+                    {index === 0 && isOpen && (
+                      <div className="yoda-layer">
+                        {yodaImages.map((yoda, yodaIndex) => (
+                          <img
+                            key={`yoda-${yodaIndex}`}
+                            src={yoda.src}
+                            alt=""
+                            className={`yoda-image ${yoda.className}`}
+                            draggable={false}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="letter">
+                      <div className="surprise-content">
+                        <p className="surprise-label">{gift.label}</p>
+
+                        <div
+                          className="revealed-link-text"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {gift.link}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(event) => copyLink(event, gift.link)}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onTouchStart={(event) => event.stopPropagation()}
+                          className="copy-link-button"
+                        >
+                          Copy link
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="gift-shadow" />
+                    <div className="gift-base" />
+                    <div className="gift-ribbon-vertical" />
+                    <div className="gift-ribbon-horizontal" />
+                    <div className="gift-lid" />
+                    <div className="gift-lid-ribbon" />
+                    <div className="gift-bow gift-bow-left" />
+                    <div className="gift-bow gift-bow-right" />
+                    <div className="gift-bow-center" />
+
+                    {index === 1 ? (
+                      <div className="blue-rose-seal">
+                        <span className="rose-petal rose-petal-1" />
+                        <span className="rose-petal rose-petal-2" />
+                        <span className="rose-petal rose-petal-3" />
+                        <span className="rose-petal rose-petal-4" />
+                        <span className="rose-petal rose-petal-5" />
+                        <span className="rose-petal rose-petal-6" />
+                        <span className="rose-center" />
+                      </div>
+                    ) : (
+                      <div className="heart-seal" />
+                    )}
+                  </div>
+                </div>
               </div>
+            )
+          })}
+        </div>
 
-              <button
-                type="button"
-                onClick={copyLink}
-                onMouseDown={(event) => event.stopPropagation()}
-                className="copy-link-button"
-              >
-                Copy link
-              </button>
-            </div>
-          </div>
+        <div className="slide-guide" onClick={(event) => event.stopPropagation()}>
+          <span className="slide-arrow">←</span>
+          <span>Slide to see the gifts</span>
+          <span className="slide-arrow">→</span>
+        </div>
 
-          <div className="gift-shadow" />
-          <div className="gift-base" />
-          <div className="gift-ribbon-vertical" />
-          <div className="gift-ribbon-horizontal" />
-          <div className="gift-lid" />
-          <div className="gift-lid-ribbon" />
-          <div className="gift-bow gift-bow-left" />
-          <div className="gift-bow gift-bow-right" />
-          <div className="gift-bow-center" />
-          <div className="heart-seal" />
+        <div className="gift-dots" onClick={(event) => event.stopPropagation()}>
+          {gifts.map((_, index) => (
+            <span
+              key={`dot-${index}`}
+              aria-label={`Gift ${index + 1}`}
+              className={`gift-dot ${activeGift === index ? "active" : ""}`}
+            />
+          ))}
         </div>
       </div>
 
@@ -257,6 +512,84 @@ function Surprise() {
           }
         }
 
+        @keyframes falling-star {
+          0% {
+            transform: translate(0, 0) rotate(-38deg) scaleX(0.45);
+            opacity: 0;
+          }
+          12% {
+            opacity: var(--star-opacity, 1);
+          }
+          100% {
+            transform: translate(-340px, 440px) rotate(-38deg) scaleX(1);
+            opacity: 0;
+          }
+        }
+
+        @keyframes dolphin-fly {
+          0% {
+            transform: translate(-18vw, 0) rotate(var(--dolphin-rotate)) scaleX(1);
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.95;
+          }
+          45% {
+            transform: translate(38vw, -52px) rotate(calc(var(--dolphin-rotate) + 14deg)) scaleX(1);
+          }
+          70% {
+            transform: translate(72vw, 34px) rotate(calc(var(--dolphin-rotate) - 10deg)) scaleX(1);
+          }
+          100% {
+            transform: translate(112vw, -30px) rotate(var(--dolphin-rotate)) scaleX(1);
+            opacity: 0;
+          }
+        }
+
+        @keyframes slide-label-glow {
+          0%, 100% {
+            transform: translateY(0);
+            opacity: 0.78;
+          }
+          50% {
+            transform: translateY(-4px);
+            opacity: 1;
+          }
+        }
+
+        @keyframes slide-arrow-move {
+          0%, 100% {
+            transform: translateX(0);
+          }
+          50% {
+            transform: translateX(4px);
+          }
+        }
+
+        @keyframes yoda-pop {
+          0% {
+            opacity: 0;
+            transform: translateY(22px) scale(0.45) rotate(-8deg);
+          }
+          70% {
+            opacity: 1;
+            transform: translateY(-8px) scale(1.08) rotate(4deg);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1) rotate(0deg);
+          }
+        }
+
+        @keyframes yoda-bob {
+          0%, 100% {
+            margin-top: 0;
+          }
+          50% {
+            margin-top: -8px;
+          }
+        }
+
         .animate-float {
           animation-name: float;
           animation-timing-function: ease-in-out;
@@ -278,6 +611,123 @@ function Surprise() {
           animation-iteration-count: infinite;
         }
 
+        .falling-star {
+          position: absolute;
+          width: 120px;
+          height: 2px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), rgba(191, 219, 254, 0.2));
+          filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
+          animation-name: falling-star;
+          animation-timing-function: linear;
+          animation-iteration-count: infinite;
+          opacity: 0;
+          --star-opacity: 1;
+        }
+
+        .falling-star::before {
+          content: "";
+          position: absolute;
+          right: 0;
+          top: 50%;
+          width: 6px;
+          height: 6px;
+          border-radius: 999px;
+          background: white;
+          transform: translateY(-50%);
+          box-shadow: 0 0 18px 6px rgba(191, 219, 254, 0.75);
+        }
+
+        .flying-dolphin {
+          position: absolute;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: none;
+          filter: drop-shadow(0 8px 14px rgba(2, 6, 23, 0.35));
+          animation-name: dolphin-fly;
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
+          opacity: 0;
+        }
+
+        .gift-slider {
+          display: flex;
+          width: 100%;
+          overflow: visible;
+          will-change: transform;
+        }
+
+        .gift-slide {
+          min-width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: visible;
+          padding: 70px 0 34px;
+        }
+
+        .slide-guide {
+          position: relative;
+          z-index: 25;
+          margin: -10px auto 0;
+          width: fit-content;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.24);
+          background: rgba(255, 255, 255, 0.12);
+          padding: 10px 18px;
+          color: white;
+          font-size: 14px;
+          font-weight: 800;
+          letter-spacing: 0.02em;
+          box-shadow: 0 12px 32px rgba(15, 23, 42, 0.25);
+          backdrop-filter: blur(10px);
+          animation: slide-label-glow 2.2s ease-in-out infinite;
+          user-select: none;
+          pointer-events: auto;
+        }
+
+        .slide-arrow {
+          display: inline-flex;
+          animation: slide-arrow-move 1.2s ease-in-out infinite;
+        }
+
+        .slide-arrow:first-child {
+          animation-direction: reverse;
+        }
+
+        .gift-dots {
+          position: relative;
+          z-index: 25;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          margin-top: 14px;
+          pointer-events: none;
+        }
+
+        .gift-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.45);
+          transition:
+            width 0.3s ease,
+            background 0.3s ease,
+            box-shadow 0.3s ease;
+        }
+
+        .gift-dot.active {
+          width: 34px;
+          background: white;
+          box-shadow: 0 0 18px rgba(255, 255, 255, 0.45);
+        }
+
         .envelope-wrap {
           width: 510px;
           height: 390px;
@@ -285,6 +735,7 @@ function Surprise() {
           align-items: center;
           justify-content: center;
           animation: envelope-breathe 5s ease-in-out infinite;
+          overflow: visible;
         }
 
         .gift-box {
@@ -293,6 +744,67 @@ function Surprise() {
           height: 330px;
           filter: drop-shadow(0 30px 38px rgba(15, 23, 42, 0.5));
           perspective: 1000px;
+          overflow: visible;
+        }
+
+        .opened-already-label {
+          position: absolute;
+          left: 50%;
+          top: -44px;
+          z-index: 30;
+          transform: translateX(-50%);
+          border-radius: 999px;
+          border: 1px solid rgba(191, 219, 254, 0.75);
+          background: linear-gradient(135deg, rgba(239, 246, 255, 0.96), rgba(191, 219, 254, 0.92));
+          padding: 8px 18px;
+          color: #1d4ed8;
+          font-size: 14px;
+          font-weight: 900;
+          letter-spacing: 0.03em;
+          text-transform: uppercase;
+          white-space: nowrap;
+          box-shadow:
+            0 12px 28px rgba(15, 23, 42, 0.24),
+            0 0 22px rgba(147, 197, 253, 0.55);
+          pointer-events: none;
+        }
+
+        .yoda-layer {
+          position: absolute;
+          inset: 0;
+          z-index: 24;
+          pointer-events: none;
+        }
+
+        .yoda-image {
+          position: absolute;
+          width: 82px;
+          height: 82px;
+          object-fit: contain;
+          user-select: none;
+          filter: drop-shadow(0 12px 18px rgba(15, 23, 42, 0.35));
+          animation:
+            yoda-pop 0.55s ease-out both,
+            yoda-bob 2.8s ease-in-out infinite;
+        }
+
+        .yoda-one {
+          left: 16px;
+          top: 104px;
+          animation-delay: 0.12s, 0.7s;
+        }
+
+        .yoda-two {
+          right: 20px;
+          top: 92px;
+          animation-delay: 0.24s, 1s;
+        }
+
+        .yoda-three {
+          left: 50%;
+          bottom: 4px;
+          transform: translateX(-50%);
+          animation-delay: 0.36s, 1.3s;
         }
 
         .gift-shadow {
@@ -586,6 +1098,128 @@ function Surprise() {
           top: 0;
         }
 
+        .blue-rose-seal {
+          position: absolute;
+          left: 50%;
+          top: 58%;
+          width: 78px;
+          height: 78px;
+          transform: translate(-50%, -50%) scale(1);
+          z-index: 12;
+          opacity: 1;
+          filter: drop-shadow(0 0 18px rgba(125, 211, 252, 0.85));
+          transition:
+            opacity 0.35s ease-in-out,
+            transform 0.45s ease-in-out;
+        }
+
+        .gift-box.open .blue-rose-seal {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.75);
+        }
+
+        .rose-petal,
+        .rose-center {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          display: block;
+          transform-origin: center;
+        }
+
+        .rose-petal {
+          width: 38px;
+          height: 52px;
+          border-radius: 70% 30% 70% 35%;
+          background: linear-gradient(145deg, #dbeafe, #38bdf8 42%, #075985);
+          box-shadow:
+            inset 0 0 10px rgba(255, 255, 255, 0.45),
+            inset 0 -12px 18px rgba(7, 89, 133, 0.35),
+            0 0 14px rgba(56, 189, 248, 0.45);
+        }
+
+        .rose-petal-1 {
+          transform: translate(-50%, -78%) rotate(0deg);
+        }
+
+        .rose-petal-2 {
+          transform: translate(-23%, -58%) rotate(58deg);
+        }
+
+        .rose-petal-3 {
+          transform: translate(-30%, -24%) rotate(118deg);
+        }
+
+        .rose-petal-4 {
+          transform: translate(-72%, -24%) rotate(180deg);
+        }
+
+        .rose-petal-5 {
+          transform: translate(-82%, -58%) rotate(238deg);
+        }
+
+        .rose-petal-6 {
+          transform: translate(-50%, -52%) rotate(298deg);
+        }
+
+        .rose-center {
+          width: 34px;
+          height: 34px;
+          border-radius: 50% 45% 50% 45%;
+          background:
+            radial-gradient(circle at 35% 32%, #eff6ff 0 12%, transparent 13%),
+            conic-gradient(from 30deg, #0c4a6e, #38bdf8, #bfdbfe, #0284c7, #075985, #0c4a6e);
+          transform: translate(-50%, -50%) rotate(22deg);
+          box-shadow:
+            inset 0 0 9px rgba(255, 255, 255, 0.55),
+            0 0 14px rgba(125, 211, 252, 0.75);
+        }
+
+        .gift-box-azure .gift-base {
+          background: linear-gradient(145deg, #7dd3fc, #0284c7 52%, #075985);
+          box-shadow:
+            inset 0 0 28px rgba(255, 255, 255, 0.25),
+            inset 0 -26px 38px rgba(7, 89, 133, 0.38),
+            0 0 58px rgba(56, 189, 248, 0.42);
+        }
+
+        .gift-box-azure .gift-ribbon-vertical,
+        .gift-box-azure .gift-ribbon-horizontal,
+        .gift-box-azure .gift-lid-ribbon {
+          background: linear-gradient(180deg, #e0f2fe, #38bdf8 48%, #075985);
+        }
+
+        .gift-box-azure .gift-ribbon-horizontal {
+          background: linear-gradient(90deg, #e0f2fe, #38bdf8 45%, #075985);
+        }
+
+        .gift-box-azure .gift-lid {
+          background: linear-gradient(145deg, #bae6fd, #0ea5e9 55%, #0369a1);
+          box-shadow:
+            inset 0 0 24px rgba(255, 255, 255, 0.28),
+            0 18px 24px rgba(15, 23, 42, 0.25),
+            0 0 42px rgba(56, 189, 248, 0.42);
+        }
+
+        .gift-box-azure .gift-bow {
+          border-color: #38bdf8;
+          background: rgba(186, 230, 253, 0.38);
+        }
+
+        .gift-box-azure .gift-bow-center,
+        .gift-box-azure .copy-link-button {
+          background: linear-gradient(135deg, #e0f2fe, #38bdf8, #0369a1);
+        }
+
+        .gift-box-azure .surprise-label {
+          color: #075985;
+        }
+
+        .gift-box-azure .revealed-link-text {
+          background: rgba(14, 165, 233, 0.12);
+          color: #0369a1;
+        }
+
         @media (max-width: 640px) {
           @keyframes float {
             0% {
@@ -625,6 +1259,39 @@ function Surprise() {
             }
           }
 
+          @keyframes falling-star {
+            0% {
+              transform: translate(0, 0) rotate(-38deg) scaleX(0.45);
+              opacity: 0;
+            }
+            12% {
+              opacity: var(--star-opacity, 1);
+            }
+            100% {
+              transform: translate(-190px, 270px) rotate(-38deg) scaleX(1);
+              opacity: 0;
+            }
+          }
+
+          .gift-slide {
+            padding: 52px 0 28px;
+          }
+
+          .slide-guide {
+            margin-top: -4px;
+            padding: 9px 14px;
+            font-size: 12px;
+            gap: 8px;
+          }
+
+          .gift-dots {
+            margin-top: 12px;
+          }
+
+          .falling-star {
+            width: 82px;
+          }
+
           .envelope-wrap {
             width: 340px;
             height: 285px;
@@ -633,6 +1300,31 @@ function Surprise() {
           .gift-box {
             width: 325px;
             height: 242px;
+          }
+
+          .opened-already-label {
+            top: -36px;
+            padding: 7px 14px;
+            font-size: 11px;
+          }
+
+          .yoda-image {
+            width: 52px;
+            height: 52px;
+          }
+
+          .yoda-one {
+            left: 8px;
+            top: 78px;
+          }
+
+          .yoda-two {
+            right: 10px;
+            top: 74px;
+          }
+
+          .yoda-three {
+            bottom: 0;
           }
 
           .gift-shadow {
@@ -775,6 +1467,22 @@ function Surprise() {
 
           .heart-seal::after {
             left: 20px;
+          }
+
+          .blue-rose-seal {
+            width: 52px;
+            height: 52px;
+            top: 60%;
+          }
+
+          .rose-petal {
+            width: 26px;
+            height: 35px;
+          }
+
+          .rose-center {
+            width: 23px;
+            height: 23px;
           }
         }
       `}</style>
