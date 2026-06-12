@@ -21,7 +21,7 @@ function Surprise() {
     },
     {
       label: "Another surprise for you Adoy <3",
-      link: "https://discord.gift/w48BzWPwZw7kgnGB",
+      link: "https://discord.gift/EEmJ9WTdf76tQEyQ",
       className: "gift-box-azure",
     },
   ]
