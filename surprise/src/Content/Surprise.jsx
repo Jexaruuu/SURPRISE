@@ -5,13 +5,16 @@ function Surprise() {
   const [openGifts, setOpenGifts] = useState([false, false])
   const [openedGifts, setOpenedGifts] = useState([true, false])
   const [showCopiedPopup, setShowCopiedPopup] = useState(false)
-  const [mousePosition, setMousePosition] = useState({ x: -9999, y: -9999 })
   const [dragOffset, setDragOffset] = useState(0)
 
   const copiedTimeoutRef = useRef(null)
   const dragStartXRef = useRef(0)
   const draggingRef = useRef(false)
   const didDragRef = useRef(false)
+  const fireflyRefs = useRef([])
+  const animationFrameRef = useRef(null)
+  const mousePositionRef = useRef({ x: -9999, y: -9999 })
+  const viewportRef = useRef({ width: 0, height: 0 })
 
   const gifts = [
     {
@@ -43,7 +46,7 @@ function Surprise() {
 
   const stars = useMemo(
     () =>
-      Array.from({ length: 80 }, () => ({
+      Array.from({ length: 56 }, () => ({
         width: `${Math.random() * 2 + 1}px`,
         height: `${Math.random() * 2 + 1}px`,
         top: `${Math.random() * 100}%`,
@@ -57,7 +60,7 @@ function Surprise() {
 
   const fireflies = useMemo(
     () =>
-      Array.from({ length: 46 }, () => ({
+      Array.from({ length: 28 }, () => ({
         topValue: Math.random() * 85 + 8,
         leftValue: Math.random() * 90 + 5,
         animationDuration: `${Math.random() * 8 + 6}s`,
@@ -68,7 +71,7 @@ function Surprise() {
 
   const fallingStars = useMemo(
     () =>
-      Array.from({ length: 34 }, () => ({
+      Array.from({ length: 18 }, () => ({
         top: `${Math.random() * 70}%`,
         left: `${Math.random() * 110}%`,
         animationDuration: `${Math.random() * 3 + 2.5}s`,
@@ -80,7 +83,7 @@ function Surprise() {
 
   const dolphins = useMemo(
     () =>
-      Array.from({ length: 12 }, () => ({
+      Array.from({ length: 7 }, () => ({
         top: `${Math.random() * 70 + 12}%`,
         left: `${Math.random() * 95}%`,
         size: `${Math.random() * 18 + 28}px`,
@@ -91,10 +94,75 @@ function Surprise() {
     []
   )
 
+  const updateFireflyMotion = () => {
+    animationFrameRef.current = null
+
+    const { x, y } = mousePositionRef.current
+    const { width, height } = viewportRef.current
+
+    if (x < -1000 || y < -1000 || width === 0 || height === 0) {
+      fireflyRefs.current.forEach((element) => {
+        if (element) {
+          element.style.setProperty("--firefly-x", "0px")
+          element.style.setProperty("--firefly-y", "0px")
+        }
+      })
+
+      return
+    }
+
+    fireflies.forEach((firefly, index) => {
+      const element = fireflyRefs.current[index]
+
+      if (!element) {
+        return
+      }
+
+      const fireflyX = (firefly.leftValue / 100) * width
+      const fireflyY = (firefly.topValue / 100) * height
+      const distanceX = fireflyX - x
+      const distanceY = fireflyY - y
+      const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY)
+      const range = 140
+      const strength = Math.max(0, (range - distance) / range)
+      const angle = Math.atan2(distanceY, distanceX)
+      const moveX = Math.cos(angle) * strength * 42
+      const moveY = Math.sin(angle) * strength * 42
+
+      element.style.setProperty("--firefly-x", `${moveX.toFixed(2)}px`)
+      element.style.setProperty("--firefly-y", `${moveY.toFixed(2)}px`)
+    })
+  }
+
+  const scheduleFireflyMotion = () => {
+    if (animationFrameRef.current) {
+      return
+    }
+
+    animationFrameRef.current = requestAnimationFrame(updateFireflyMotion)
+  }
+
   useEffect(() => {
+    const updateViewport = () => {
+      viewportRef.current = {
+        width: window.innerWidth || 0,
+        height: window.innerHeight || 0,
+      }
+    }
+
+    updateViewport()
+
+    window.addEventListener("resize", updateViewport)
+
     return () => {
+      window.removeEventListener("resize", updateViewport)
+
       if (copiedTimeoutRef.current) {
         clearTimeout(copiedTimeoutRef.current)
+      }
+
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
       }
     }
   }, [])
@@ -122,10 +190,12 @@ function Surprise() {
   }
 
   const moveFireflies = (event) => {
-    setMousePosition({
+    mousePositionRef.current = {
       x: event.clientX,
       y: event.clientY,
-    })
+    }
+
+    scheduleFireflyMotion()
   }
 
   const copyLink = async (event, link) => {
@@ -214,7 +284,8 @@ function Surprise() {
         moveDrag(event)
       }}
       onMouseLeave={() => {
-        setMousePosition({ x: -9999, y: -9999 })
+        mousePositionRef.current = { x: -9999, y: -9999 }
+        scheduleFireflyMotion()
         endDrag()
       }}
       onMouseUp={endDrag}
@@ -234,7 +305,7 @@ function Surprise() {
     >
       {activeGift === 0 && (
         <>
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none background-layer">
             {stars.map((style, index) => (
               <span
                 key={`star-${index}`}
@@ -244,48 +315,31 @@ function Surprise() {
             ))}
           </div>
 
-          <div className="absolute inset-0">
-            {fireflies.map((firefly, index) => {
-              const fireflyX =
-                typeof window !== "undefined"
-                  ? (firefly.leftValue / 100) * window.innerWidth
-                  : 0
-              const fireflyY =
-                typeof window !== "undefined"
-                  ? (firefly.topValue / 100) * window.innerHeight
-                  : 0
-
-              const distanceX = fireflyX - mousePosition.x
-              const distanceY = fireflyY - mousePosition.y
-              const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY)
-              const range = 150
-              const strength = Math.max(0, (range - distance) / range)
-              const angle = Math.atan2(distanceY, distanceX)
-              const moveX = Math.cos(angle) * strength * 55
-              const moveY = Math.sin(angle) * strength * 55
-
-              return (
-                <span
-                  key={`firefly-${index}`}
-                  className="absolute h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-yellow-300 shadow-[0_0_16px_6px_rgba(253,224,71,0.7)] animate-float firefly-dot"
-                  style={{
-                    top: `${firefly.topValue}%`,
-                    left: `${firefly.leftValue}%`,
-                    animationDuration: firefly.animationDuration,
-                    animationDelay: firefly.animationDelay,
-                    "--firefly-x": `${moveX}px`,
-                    "--firefly-y": `${moveY}px`,
-                  }}
-                />
-              )
-            })}
+          <div className="absolute inset-0 pointer-events-none background-layer">
+            {fireflies.map((firefly, index) => (
+              <span
+                key={`firefly-${index}`}
+                ref={(element) => {
+                  fireflyRefs.current[index] = element
+                }}
+                className="absolute h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-yellow-300 shadow-[0_0_14px_5px_rgba(253,224,71,0.62)] animate-float firefly-dot"
+                style={{
+                  top: `${firefly.topValue}%`,
+                  left: `${firefly.leftValue}%`,
+                  animationDuration: firefly.animationDuration,
+                  animationDelay: firefly.animationDelay,
+                  "--firefly-x": "0px",
+                  "--firefly-y": "0px",
+                }}
+              />
+            ))}
           </div>
         </>
       )}
 
       {activeGift === 1 && (
         <>
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none background-layer">
             {fallingStars.map((star, index) => (
               <span
                 key={`falling-star-${index}`}
@@ -295,7 +349,7 @@ function Surprise() {
             ))}
           </div>
 
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 pointer-events-none background-layer">
             {dolphins.map((dolphin, index) => (
               <span
                 key={`dolphin-${index}`}
@@ -467,117 +521,111 @@ function Surprise() {
       <style>{`
         @keyframes float {
           0% {
-            transform: translate(var(--firefly-x, 0px), var(--firefly-y, 0px)) scale(1);
+            transform: translate3d(var(--firefly-x, 0px), var(--firefly-y, 0px), 0) scale(1);
             opacity: 0.4;
           }
           25% {
-            transform: translate(calc(var(--firefly-x, 0px) + 35px), calc(var(--firefly-y, 0px) - 45px)) scale(1.2);
+            transform: translate3d(calc(var(--firefly-x, 0px) + 35px), calc(var(--firefly-y, 0px) - 45px), 0) scale(1.2);
             opacity: 1;
           }
           50% {
-            transform: translate(calc(var(--firefly-x, 0px) - 25px), calc(var(--firefly-y, 0px) - 80px)) scale(0.9);
+            transform: translate3d(calc(var(--firefly-x, 0px) - 25px), calc(var(--firefly-y, 0px) - 80px), 0) scale(0.9);
             opacity: 0.7;
           }
           75% {
-            transform: translate(calc(var(--firefly-x, 0px) - 45px), calc(var(--firefly-y, 0px) + 25px)) scale(1.15);
+            transform: translate3d(calc(var(--firefly-x, 0px) - 45px), calc(var(--firefly-y, 0px) + 25px), 0) scale(1.15);
             opacity: 1;
           }
           100% {
-            transform: translate(var(--firefly-x, 0px), var(--firefly-y, 0px)) scale(1);
+            transform: translate3d(var(--firefly-x, 0px), var(--firefly-y, 0px), 0) scale(1);
             opacity: 0.4;
           }
         }
 
         @keyframes moon {
-          0% {
-            transform: translateY(0) scale(1);
-            box-shadow: 0 0 80px 30px rgba(254, 249, 195, 0.35);
+          0%, 100% {
+            transform: translate3d(0, 0, 0) scale(1);
           }
           50% {
-            transform: translateY(-14px) scale(1.04);
-            box-shadow: 0 0 110px 40px rgba(254, 249, 195, 0.5);
-          }
-          100% {
-            transform: translateY(0) scale(1);
-            box-shadow: 0 0 80px 30px rgba(254, 249, 195, 0.35);
+            transform: translate3d(0, -14px, 0) scale(1.04);
           }
         }
 
         @keyframes envelope-breathe {
           0%, 100% {
-            transform: translateY(0) scale(1);
+            transform: translate3d(0, 0, 0) scale(1);
           }
           50% {
-            transform: translateY(-10px) scale(1.03);
+            transform: translate3d(0, -10px, 0) scale(1.03);
           }
         }
 
         @keyframes falling-star {
           0% {
-            transform: translate(0, 0) rotate(-38deg) scaleX(0.45);
+            transform: translate3d(0, 0, 0) rotate(-38deg) scaleX(0.45);
             opacity: 0;
           }
           12% {
             opacity: var(--star-opacity, 1);
           }
           100% {
-            transform: translate(-340px, 440px) rotate(-38deg) scaleX(1);
+            transform: translate3d(-340px, 440px, 0) rotate(-38deg) scaleX(1);
             opacity: 0;
           }
         }
 
         @keyframes dolphin-fly {
           0% {
-            transform: translate(-18vw, 0) rotate(var(--dolphin-rotate)) scaleX(1);
+            transform: translate3d(-18vw, 0, 0) rotate(var(--dolphin-rotate)) scaleX(1);
             opacity: 0;
           }
           10% {
             opacity: 0.95;
           }
           45% {
-            transform: translate(38vw, -52px) rotate(calc(var(--dolphin-rotate) + 14deg)) scaleX(1);
+            transform: translate3d(38vw, -52px, 0) rotate(calc(var(--dolphin-rotate) + 14deg)) scaleX(1);
           }
           70% {
-            transform: translate(72vw, 34px) rotate(calc(var(--dolphin-rotate) - 10deg)) scaleX(1);
+            transform: translate3d(72vw, 34px, 0) rotate(calc(var(--dolphin-rotate) - 10deg)) scaleX(1);
           }
           100% {
-            transform: translate(112vw, -30px) rotate(var(--dolphin-rotate)) scaleX(1);
+            transform: translate3d(112vw, -30px, 0) rotate(var(--dolphin-rotate)) scaleX(1);
             opacity: 0;
           }
         }
 
         @keyframes slide-label-glow {
           0%, 100% {
-            transform: translateY(0);
+            transform: translate3d(0, 0, 0);
             opacity: 0.78;
           }
           50% {
-            transform: translateY(-4px);
+            transform: translate3d(0, -4px, 0);
             opacity: 1;
           }
         }
 
         @keyframes slide-arrow-move {
           0%, 100% {
-            transform: translateX(0);
+            transform: translate3d(0, 0, 0);
           }
           50% {
-            transform: translateX(4px);
+            transform: translate3d(4px, 0, 0);
           }
         }
 
         @keyframes yoda-pop {
           0% {
             opacity: 0;
-            transform: translateY(22px) scale(0.45) rotate(-8deg);
+            transform: translate3d(0, 22px, 0) scale(0.45) rotate(-8deg);
           }
           70% {
             opacity: 1;
-            transform: translateY(-8px) scale(1.08) rotate(4deg);
+            transform: translate3d(0, -8px, 0) scale(1.08) rotate(4deg);
           }
           100% {
             opacity: 1;
-            transform: translateY(0) scale(1) rotate(0deg);
+            transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
           }
         }
 
@@ -590,6 +638,11 @@ function Surprise() {
           }
         }
 
+        .background-layer {
+          contain: layout paint style;
+          transform: translateZ(0);
+        }
+
         .animate-float {
           animation-name: float;
           animation-timing-function: ease-in-out;
@@ -597,11 +650,9 @@ function Surprise() {
         }
 
         .firefly-dot {
-          transition:
-            top 0.45s ease-out,
-            left 0.45s ease-out,
-            filter 0.35s ease-out;
-          will-change: transform;
+          will-change: transform, opacity;
+          transform: translateZ(0);
+          backface-visibility: hidden;
         }
 
         .animate-moon {
@@ -609,6 +660,8 @@ function Surprise() {
           animation-duration: 6s;
           animation-timing-function: ease-in-out;
           animation-iteration-count: infinite;
+          will-change: transform;
+          transform: translateZ(0);
         }
 
         .falling-star {
@@ -617,12 +670,15 @@ function Surprise() {
           height: 2px;
           border-radius: 999px;
           background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), rgba(191, 219, 254, 0.2));
-          filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
+          box-shadow: 0 0 10px rgba(255, 255, 255, 0.45);
           animation-name: falling-star;
           animation-timing-function: linear;
           animation-iteration-count: infinite;
           opacity: 0;
           --star-opacity: 1;
+          will-change: transform, opacity;
+          transform: translateZ(0);
+          backface-visibility: hidden;
         }
 
         .falling-star::before {
@@ -635,7 +691,7 @@ function Surprise() {
           border-radius: 999px;
           background: white;
           transform: translateY(-50%);
-          box-shadow: 0 0 18px 6px rgba(191, 219, 254, 0.75);
+          box-shadow: 0 0 14px 4px rgba(191, 219, 254, 0.58);
         }
 
         .flying-dolphin {
@@ -644,11 +700,14 @@ function Surprise() {
           align-items: center;
           justify-content: center;
           pointer-events: none;
-          filter: drop-shadow(0 8px 14px rgba(2, 6, 23, 0.35));
+          filter: drop-shadow(0 6px 10px rgba(2, 6, 23, 0.26));
           animation-name: dolphin-fly;
           animation-timing-function: ease-in-out;
           animation-iteration-count: infinite;
           opacity: 0;
+          will-change: transform, opacity;
+          transform: translateZ(0);
+          backface-visibility: hidden;
         }
 
         .gift-slider {
@@ -656,6 +715,7 @@ function Surprise() {
           width: 100%;
           overflow: visible;
           will-change: transform;
+          transform: translateZ(0);
         }
 
         .gift-slide {
@@ -689,11 +749,13 @@ function Surprise() {
           animation: slide-label-glow 2.2s ease-in-out infinite;
           user-select: none;
           pointer-events: auto;
+          will-change: transform, opacity;
         }
 
         .slide-arrow {
           display: inline-flex;
           animation: slide-arrow-move 1.2s ease-in-out infinite;
+          will-change: transform;
         }
 
         .slide-arrow:first-child {
@@ -736,6 +798,8 @@ function Surprise() {
           justify-content: center;
           animation: envelope-breathe 5s ease-in-out infinite;
           overflow: visible;
+          will-change: transform;
+          transform: translateZ(0);
         }
 
         .gift-box {
@@ -890,6 +954,7 @@ function Surprise() {
             transform 0.75s ease-in-out,
             top 0.75s ease-in-out;
           z-index: 8;
+          will-change: transform, top;
         }
 
         .gift-box.open .gift-lid {
@@ -913,6 +978,7 @@ function Surprise() {
             transform 0.75s ease-in-out,
             top 0.75s ease-in-out;
           z-index: 9;
+          will-change: transform, top;
         }
 
         .gift-box.open .gift-lid-ribbon {
@@ -934,6 +1000,7 @@ function Surprise() {
             transform 0.75s ease-in-out,
             top 0.75s ease-in-out;
           z-index: 10;
+          will-change: transform, top;
         }
 
         .gift-bow-left {
@@ -974,6 +1041,7 @@ function Surprise() {
             transform 0.75s ease-in-out,
             top 0.75s ease-in-out;
           z-index: 11;
+          will-change: transform, top;
         }
 
         .gift-box.open .gift-bow-center {
@@ -996,6 +1064,7 @@ function Surprise() {
           transition:
             transform 0.75s ease-in-out,
             opacity 0.45s ease-in-out;
+          will-change: transform, opacity;
         }
 
         .gift-box.open .letter {
@@ -1223,52 +1292,46 @@ function Surprise() {
         @media (max-width: 640px) {
           @keyframes float {
             0% {
-              transform: translate(var(--firefly-x, 0px), var(--firefly-y, 0px)) scale(1);
+              transform: translate3d(var(--firefly-x, 0px), var(--firefly-y, 0px), 0) scale(1);
               opacity: 0.4;
             }
             25% {
-              transform: translate(calc(var(--firefly-x, 0px) + 18px), calc(var(--firefly-y, 0px) - 25px)) scale(1.15);
+              transform: translate3d(calc(var(--firefly-x, 0px) + 18px), calc(var(--firefly-y, 0px) - 25px), 0) scale(1.15);
               opacity: 1;
             }
             50% {
-              transform: translate(calc(var(--firefly-x, 0px) - 15px), calc(var(--firefly-y, 0px) - 45px)) scale(0.9);
+              transform: translate3d(calc(var(--firefly-x, 0px) - 15px), calc(var(--firefly-y, 0px) - 45px), 0) scale(0.9);
               opacity: 0.7;
             }
             75% {
-              transform: translate(calc(var(--firefly-x, 0px) - 22px), calc(var(--firefly-y, 0px) + 18px)) scale(1.1);
+              transform: translate3d(calc(var(--firefly-x, 0px) - 22px), calc(var(--firefly-y, 0px) + 18px), 0) scale(1.1);
               opacity: 1;
             }
             100% {
-              transform: translate(var(--firefly-x, 0px), var(--firefly-y, 0px)) scale(1);
+              transform: translate3d(var(--firefly-x, 0px), var(--firefly-y, 0px), 0) scale(1);
               opacity: 0.4;
             }
           }
 
           @keyframes moon {
-            0% {
-              transform: translateY(0) scale(1);
-              box-shadow: 0 0 55px 20px rgba(254, 249, 195, 0.3);
+            0%, 100% {
+              transform: translate3d(0, 0, 0) scale(1);
             }
             50% {
-              transform: translateY(-8px) scale(1.03);
-              box-shadow: 0 0 75px 28px rgba(254, 249, 195, 0.45);
-            }
-            100% {
-              transform: translateY(0) scale(1);
-              box-shadow: 0 0 55px 20px rgba(254, 249, 195, 0.3);
+              transform: translate3d(0, -8px, 0) scale(1.03);
             }
           }
 
           @keyframes falling-star {
             0% {
-              transform: translate(0, 0) rotate(-38deg) scaleX(0.45);
+              transform: translate3d(0, 0, 0) rotate(-38deg) scaleX(0.45);
               opacity: 0;
             }
             12% {
               opacity: var(--star-opacity, 1);
             }
             100% {
-              transform: translate(-190px, 270px) rotate(-38deg) scaleX(1);
+              transform: translate3d(-190px, 270px, 0) rotate(-38deg) scaleX(1);
               opacity: 0;
             }
           }
